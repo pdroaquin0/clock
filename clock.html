@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Hora • Minimal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0b0c10;
+      --fg:#e5e7eb;
+      --muted:#9ca3af;
+      --accent:#60a5fa;
+      --card:#111217;
+    }
+    @media (prefers-color-scheme: light) {
+      :root{ --bg:#fafafa; --fg:#0b0c10; --muted:#6b7280; --accent:#2563eb; --card:#ffffff; }
+      .grain{opacity:.04}
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--fg);
+      font-family:"Space Grotesk",system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+      display:flex; align-items:center; justify-content:center;
+      padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      overflow:hidden;
+    }
+    .container{
+      width:100%; max-width:1100px; padding:24px; gap:18px; display:grid;
+      grid-template-columns: 1fr auto; grid-template-rows: auto auto 1fr; align-items:center;
+    }
+    .time{
+      grid-column:1/2; grid-row:1;
+      font-size: clamp(48px, 14vw, 160px);
+      font-weight:700; letter-spacing:-.02em; line-height: .95; display:flex; align-items:baseline; gap:.2em;
+    }
+    .seconds{ font-weight:500; font-size: .36em; opacity:.75; }
+    .ampm{ font-size:.32em; font-weight:600; opacity:.7; border:1px solid var(--muted); padding:.15em .45em; border-radius:999px; }
+    .date{ grid-column:1/2; grid-row:2; font-size:clamp(14px,2.5vw,22px); color:var(--muted); }
+    .right{ grid-column:2/3; grid-row:1/3; display:flex; flex-direction:column; gap:10px; align-items:flex-end; }
+    .pill{ font-size:14px; color:var(--fg); background:var(--card); border:1px solid #1f2937; padding:8px 12px; border-radius:999px; display:flex; align-items:center; gap:8px; }
+    .dot{ width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 20px var(--accent); }
+    .meta{ grid-column:1/3; grid-row:3; display:grid; grid-template-columns: repeat(4,1fr); gap:12px; }
+    .tile{ background:var(--card); border:1px solid #1f2937; padding:16px; border-radius:18px; }
+    .label{ color:var(--muted); font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
+    .value{ font-family:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:clamp(18px,3.5vw,26px); margin-top:6px; }
+
+    /* Message toast */
+    .toast{ position:fixed; left:50%; bottom:5vh; transform:translateX(-50%) translateY(120%);
+      background:rgba(17,18,23,.9); color:var(--fg); padding:14px 18px; border:1px solid #1f2937; border-radius:14px; backdrop-filter: blur(8px);
+      max-width:min(90vw,800px); text-align:center; font-size:16px; line-height:1.4; opacity:0; transition: transform .6s cubic-bezier(.2,.8,.2,1), opacity .6s;
+    }
+    .toast.show{ transform:translateX(-50%) translateY(0); opacity:1; }
+
+    /* Buttons */
+    .controls{ position:fixed; top:12px; right:12px; display:flex; gap:8px; }
+    button.icon{ appearance:none; border:1px solid #1f2937; background:var(--card); color:var(--fg);
+      width:40px; height:40px; border-radius:12px; display:grid; place-items:center; cursor:pointer; font-size:18px;
+      transition:transform .08s ease, background .2s; }
+    button.icon:active{ transform: scale(.96); }
+
+    /* Subtle grain */
+    .grain{ pointer-events:none; position:fixed; inset:0; background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.6" numOctaves="2" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23n)" opacity="0.06"/></svg>'); opacity:.06; mix-blend-mode:overlay; }
+
+    /* Landscape tip */
+    .rotate-tip{ position:fixed; inset:0; display:none; place-items:center; padding:24px; background:var(--bg); color:var(--muted); text-align:center; }
+    @media (orientation: portrait){ .rotate-tip{ display:grid } .container{ display:none } }
+
+    /* Small screens tweaks */
+    @media (max-width:740px){ .meta{ grid-template-columns: repeat(2, 1fr);} .right{display:none} }
+  </style>
+</head>
+<body>
+  <div class="rotate-tip">
+    <div>
+      <div style="font-size:40px; margin-bottom:12px">⟳</div>
+      <div>Gire o celular para o modo horizontal para a melhor experiência.</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="time" id="time">
+      00:00 <span class="seconds" id="seconds">00</span> <span class="ampm" id="ampm" hidden>AM</span>
+    </div>
+    <div class="date" id="date">terça-feira, 1 de janeiro</div>
+
+    <div class="right">
+      <div class="pill" title="Status da bateria"><span class="dot" id="batteryDot"></span> <span id="batteryText">Bateria — 100%</span></div>
+      <div class="pill" id="tzPill" title="Fuso horário local">⌚ <span id="tz"></span></div>
+    </div>
+
+    <div class="meta">
+      <div class="tile"><div class="label">Semana do ano</div><div class="value" id="week">—</div></div>
+      <div class="tile"><div class="label">Dia do ano</div><div class="value" id="doy">—</div></div>
+      <div class="tile"><div class="label">Restante do dia</div><div class="value" id="left">—</div></div>
+      <div class="tile"><div class="label">Fase da Lua</div><div class="value" id="moon">—</div></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="icon" id="toggleFormat" title="Alternar 24h/12h">24</button>
+    <button class="icon" id="toggleSeconds" title="Mostrar/ocultar segundos">⏱</button>
+    <button class="icon" id="showQuote" title="Mostrar mensagem agora">✦</button>
+  </div>
+
+  <div class="toast" id="toast">Você é capaz de mais do que imagina.</div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <script>
+    const els = {
+      time: document.getElementById('time'),
+      seconds: document.getElementById('seconds'),
+      ampm: document.getElementById('ampm'),
+      date: document.getElementById('date'),
+      week: document.getElementById('week'),
+      doy: document.getElementById('doy'),
+      left: document.getElementById('left'),
+      moon: document.getElementById('moon'),
+      tz: document.getElementById('tz'),
+      batteryDot: document.getElementById('batteryDot'),
+      batteryText: document.getElementById('batteryText'),
+      toast: document.getElementById('toast'),
+      toggleFormat: document.getElementById('toggleFormat'),
+      toggleSeconds: document.getElementById('toggleSeconds'),
+      showQuote: document.getElementById('showQuote'),
+    };
+
+    // Preferences
+    const prefs = {
+      is24: JSON.parse(localStorage.getItem('is24') ?? 'true'),
+      showSeconds: JSON.parse(localStorage.getItem('showSeconds') ?? 'true'),
+    };
+    function savePrefs(){
+      localStorage.setItem('is24', JSON.stringify(prefs.is24));
+      localStorage.setItem('showSeconds', JSON.stringify(prefs.showSeconds));
+    }
+
+    // Quotes (PT + EN curtas, sem rede)
+    const quotes = [
+      'Você é capaz de mais do que imagina.',
+      'Um passo por dia ainda é avanço.',
+      'Clareza nasce da ação.',
+      'Respire fundo. Continue.',
+      'Disciplina é liberdade.',
+      'Menos ruído, mais foco.',
+      'Feito é melhor que perfeito.',
+      'Seu futuro agradece suas escolhas de hoje.',
+      'Se não for agora, quando?',
+      'Small steps, big change.',
+      'Consistency beats intensity.',
+      'Be where your feet are.',
+      'Rotina cria resultados.',
+      'O começo é sempre agora.',
+      'O impossível é só o não tentado.',
+    ];
+
+    // Timezone text
+    try{
+      const tzName = Intl.DateTimeFormat(undefined,{timeZoneName:'short'}).formatToParts(new Date()).find(p=>p.type==='timeZoneName')?.value || '';
+      els.tz.textContent = `${Intl.DateTimeFormat().resolvedOptions().timeZone || 'Fuso local'} • ${tzName}`;
+    }catch{ els.tz.textContent = 'Fuso local'; }
+
+    // Battery (where supported)
+    if(navigator.getBattery){
+      navigator.getBattery().then(b=>{
+        function renderBattery(){
+          const level = Math.round(b.level*100);
+          els.batteryText.textContent = `Bateria — ${level}%${b.charging? ' • carregando' : ''}`;
+          els.batteryDot.style.background = b.charging ? '#22c55e' : (level<20? '#ef4444' : (level<50? '#f59e0b' : 'var(--accent)'));
+          els.batteryDot.style.boxShadow = `0 0 20px ${els.batteryDot.style.background}`;
+        }
+        ['levelchange','chargingchange'].forEach(ev=>b.addEventListener(ev, renderBattery));
+        renderBattery();
+      }).catch(()=>{});
+    } else {
+      // Hide pill if not supported
+      document.querySelector('[title="Status da bateria"]').style.display = 'none';
+    }
+
+    // Week number (ISO-8601)
+    function isoWeek(dt){
+      const d = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()));
+      const dayNum = d.getUTCDay() || 7; // Mon=1..Sun=7
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+      const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+      return weekNo;
+    }
+
+    // Day of year
+    function dayOfYear(dt){
+      const start = new Date(dt.getFullYear(),0,0);
+      const diff = dt - start;
+      return Math.floor(diff / 86400000);
+    }
+
+    // Moon phase (simple approximation 0-7)
+    function moonPhase(dt){
+      // Based on Conway algorithm approximation
+      let r = dt.getFullYear() % 100;
+      r %= 19; if(r>9) r -= 19;
+      r = ((r * 11) % 30) + dt.getMonth() + 1 + dt.getDate();
+      if(dt.getMonth()<2) r += 2;
+      const phase = Math.floor(r* (1/29.5306)); // rough bucket
+      const idx = Math.round(((r % 30) / 29.5306) * 7) % 8;
+      const names = ['Nova','Crescente fina','Quarto crescente','Crescente gibosa','Cheia','Minguante gibosa','Quarto minguante','Minguante fina'];
+      return names[idx];
+    }
+
+    // Time loop
+    function render(){
+      const now = new Date();
+      const hours24 = now.getHours();
+      const h12 = ((hours24 + 11) % 12) + 1;
+      const h = prefs.is24 ? String(hours24).padStart(2,'0') : String(h12);
+      const m = String(now.getMinutes()).padStart(2,'0');
+      const s = String(now.getSeconds()).padStart(2,'0');
+
+      els.seconds.style.display = prefs.showSeconds ? '' : 'none';
+      els.ampm.hidden = prefs.is24;
+      els.ampm.textContent = hours24>=12 ? 'PM' : 'AM';
+
+      // Build time HTML with thin colon
+      els.time.childNodes[0].nodeValue = `${h}:${m} `;
+      els.seconds.textContent = s;
+
+      // Date
+      els.date.textContent = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'}).format(now);
+
+      // Meta
+      els.week.textContent = isoWeek(now);
+      els.doy.textContent = dayOfYear(now);
+
+      // Time left today
+      const end = new Date(now); end.setHours(23,59,59,999);
+      const leftMs = end - now;
+      const hrs = Math.floor(leftMs/3600000), mins = Math.floor((leftMs%3600000)/60000);
+      els.left.textContent = `${hrs}h ${String(mins).padStart(2,'0')}m`;
+
+      // Moon
+      els.moon.textContent = moonPhase(now);
+
+      requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+
+    // Controls
+    function updateButtons(){
+      els.toggleFormat.textContent = prefs.is24 ? '24' : '12';
+      els.toggleSeconds.setAttribute('aria-pressed', String(prefs.showSeconds));
+    }
+    els.toggleFormat.addEventListener('click', ()=>{ prefs.is24=!prefs.is24; savePrefs(); updateButtons(); });
+    els.toggleSeconds.addEventListener('click', ()=>{ prefs.showSeconds=!prefs.showSeconds; savePrefs(); updateButtons(); });
+    updateButtons();
+
+    // Quotes toast
+    function showToast(msg){
+      els.toast.textContent = msg;
+      els.toast.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(()=>{ els.toast.classList.remove('show'); }, 5000);
+    }
+    function randomQuote(){
+      return quotes[Math.floor(Math.random()*quotes.length)];
+    }
+    els.showQuote.addEventListener('click', ()=> showToast(randomQuote()));
+
+    // Auto show quotes every ~90–150s (jitter)
+    function scheduleQuote(){
+      const next = 90000 + Math.random()*60000; // 1.5–2.5 min
+      scheduleQuote._t = setTimeout(()=>{ showToast(randomQuote()); scheduleQuote(); }, next);
+    }
+    scheduleQuote();
+
+    // Wake Lock (try to keep screen awake on supported browsers)
+    let wakeLock = null;
+    async function requestWakeLock(){
+      try{ wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', ()=>{ /* no-op */ });
+      }catch{ /* unsupported or blocked */ }
+    }
+    if('wakeLock' in navigator){ requestWakeLock(); document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') requestWakeLock(); }); }
+
+    // Install prompt hint (PWA-less: just prompt add to home via browser UI)
+    // Tip: o usuário pode usar "Adicionar à Tela Inicial" no navegador para abrir em tela cheia.
+  </script>
+</body>
+</html>
